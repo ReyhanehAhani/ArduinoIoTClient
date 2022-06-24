@@ -9,40 +9,58 @@
 #define LM335Pin A0
 
 const char* username = "reyhaneh";
-const char* password = "13791379";
-const char* server = "192.168.1.102";
+const char* password = "Reyhaneh13791379";
+const char* server = "192.168.73.246";
 const int port = 5000;
 
 // We'll use a software serial interface to connect to ESP
 SoftwareSerial ESP(ArduinoRX, ArduinoTX);
 
+
+void ESPFlush() {
+  while (ESP.available() > 0) {
+    char t = ESP.read();
+  }
+}
+
 bool ConnectToWIFI() {
   ESP.print("AT+CWLAP\r\n");
   delay(2000);
-
+  
   Serial.println("Available access points (WIFI connections): ");
 
-  while (ESP.available()) {
-    Serial.write(ESP.read());
+  for(int i = 0; i < 10; i++) {
+    String AP = ESP.readStringUntil(')');
+    Serial.print(AP);
   }
 
-  Serial.println("SSID: ");
+  Serial.println("\nSSID: ");
   while (!Serial.available())
+
     ;
-  String ssid = Serial.readString();
+  String wifi_ssid = Serial.readString();
+  wifi_ssid = wifi_ssid.substring(0,wifi_ssid.length()-2);
+
+  Serial.println(wifi_ssid);
 
   Serial.println("Password: ");
   while (!Serial.available())
     ;
-  String password = Serial.readString();
+  String wifi_password = Serial.readString();
+  wifi_password = wifi_password.substring(0,wifi_password.length()-2);
 
-  ESP.print("AT+CWJAP=");
-  ESP.print(ssid);
-  ESP.print(",");
-  ESP.print(password);
-  ESP.print("\r\n");
+  Serial.println(wifi_password);
 
-  delay(2000);
+  ESPFlush();
+
+  ESP.print("AT+CWJAP=\"");
+  ESP.print(wifi_ssid);
+  ESP.print("\",\"");
+  ESP.print(wifi_password);
+  ESP.print("\"\r\n");
+
+  delay(5000);
+  
   if (ESP.find("OK")) {
     Serial.println("Ready.");
     return true;
@@ -53,10 +71,12 @@ bool ConnectToWIFI() {
 }
 
 inline void InitESP() {
+  ESPFlush();
+  
   ESP.begin(ESPBaud);
   // Check for module existance
   ESP.print("AT\r\n");
-  delay(1000);
+  delay(3000);
 
   if (ESP.find("OK")) {
     Serial.println("Ready.");
@@ -64,10 +84,16 @@ inline void InitESP() {
     Serial.println("ESP not found");
     return;
   }
+
+  ESPFlush();
   ESP.print("AT+RST\r\n");
+  delay(5000);
+  ESPFlush();
+
+  ESP.print("AT+CWJAP?\r\n");
   delay(3000);
 
-  if (ESP.find("GOT IP")) {
+  if (ESP.find("+")) {
     Serial.println("Connected to WIFI");
   } else {
     Serial.println("Could not connect to WIFI");
@@ -75,6 +101,7 @@ inline void InitESP() {
     while (!ConnectToWIFI())
       ;
   }
+
   ESP.print("AT+CWMODE=3\r\n");
   delay(500);
 
@@ -120,15 +147,9 @@ void readSensors() {
   moisture = 1023 - analogRead(MoistureSignal);
 }
 
-void ESPFlush() {
-  while (ESP.available() > 0) {
-    char t = ESP.read();
-  }
-}
-
 bool sendSensorValues() {
   char data[50];
-  char request[300];
+  char request[200];
   char command[50];
 
   ESPFlush();
@@ -171,6 +192,7 @@ bool sendSensorValues() {
   if (ESP.find("Set-Cookie: session=")) {
     res = ESP.readString();
     int cookieIndex = res.indexOf(";");
+    Serial.print(cookieIndex);
     res = res.substring(0, cookieIndex);
 
     Serial.println("Logged in successfully, session cookie: ");
@@ -225,7 +247,6 @@ void setup() {
 void loop() {
   if (min_ovf == 15) {
     min_ovf = 0;
-
     readSensors();
     sendSensorValues();
   }
